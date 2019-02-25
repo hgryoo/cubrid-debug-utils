@@ -25,8 +25,26 @@ def is_pt_node(v):
     pt_node_type = gdb.lookup_type("PT_NODE")
     return (v.type.__str__() == pt_node_type.__str__())
 
+def is_null(v):
+    target = v.dereference()
+    return str(target.address) == '0x0'
+
 def cpt_parser(s):
-    create_pt_node(s)
+    create_pt_node_internal(dot, s)
+
+def create_pt_node_internal(graph, v):
+    attr = create_node_attr(v)
+    id = add_dot_node(attr)
+
+    node_type = v['node_type']
+    gdb_write(node_type)
+    
+    info = v['info']
+    id2 = add_dot_node(attr)
+
+    add_dot_edge(id, id2, 'a')
+    gdb_write(dot.source)
+    
 
 def gdb_write(s):
     gdb.write("%s\n" % s)
@@ -88,7 +106,9 @@ def create_info_node(s):
 
 def add_dot_node(attr):
     global node_cnt
-    dot.node(str(node_cnt), attr_to_str(attr))
+    label = attr['label']
+    del attr['label']
+    dot.node(str(node_cnt), label, attr_to_str(attr))
     node_cnt += 1
     return node_cnt - 1
 
@@ -115,6 +135,10 @@ class CUBRID_PTNODE_Traversal(gdb.Command):
         init_cub_types()
 
     def invoke(self, arg, from_tty):
-        cpt_parser(arg)
+        try:
+            v = gdb.parse_and_eval(arg)
+            cpt_parser(v)
+        except gdb.error, e:
+            raise gdb.GdbError(e.message)
 
 CUBRID_PTNODE_Traversal()
