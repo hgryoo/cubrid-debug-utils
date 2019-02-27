@@ -1,6 +1,8 @@
 import sys
 import gdb
 import graphviz
+import traceback
+import logging
 
 from graphviz import Digraph
 
@@ -23,39 +25,84 @@ def make_pt_node_type_enum():
 
 def is_pt_node(v):
     pt_node_type = gdb.lookup_type("PT_NODE")
-    return (v.type.__str__() == pt_node_type.__str__())
+    if type(v) is gdb.Value:
+        return (v.type.__str__() == pt_node_type.__str__())
+    else:
+        return str(v) == str(pt_node_type)
 
 def is_null(v):
     target = v.dereference()
     return str(target.address) == '0x0'
 
 def cpt_parser(s):
+    global dot
     create_pt_node_internal(dot, s)
 
 def create_pt_node_internal(graph, v):
+    logging.debug('create_pt_node_internal')
     attr = create_node_attr(v)
-    id = add_dot_node(attr)
 
     node_type = v['node_type']
-    gdb_write(node_type)
+    attr['label'] = "<PT_NODE> " + str(node_type)
+    
+    data_type = v['data_type']
+    if not is_null(data_type):
+        create_pt_node_internal(graph, data_type)
     
     info = v['info']
-    id2 = add_dot_node(attr)
+    concrete_info_type = (str(node_type))[3:].lower()
+    gdb_write(concrete_info_type)
+    concrete_info = info[concrete_info_type]
+    info_id = create_pt_node_info(graph, concrete_info)
 
-    add_dot_edge(id, id2, 'a')
-    gdb_write(dot.source)
+    id = add_dot_node(graph, attr)
+    add_dot_edge(graph, id, info_id, 'info')
+    return id
+
+def create_pt_node_info(graph, v):
+    gdb_write('create_pt_node_info')
+    attr = create_node_attr(v)
+
+    attr['label'] = "<PT_STATEMENT_INFO> " + str(v.type)
+
+    conn_dict = {}
+
+    fields = v.type.fields()
+    for f in fields:
+        f_name = f.name
+        f_type = f.type
+
+        val = v[f_name]
+
+        if is_pointer(val):
+            if not is_null(val):
+                val_p = val.dereference()       
+                if is_pt_node(val_p):
+                    pt_id = create_pt_node_internal(graph, val_p)
+                    conn_dict[f_name] = pt_id
+                else:
+                    attr['label'] += "|" + str(f_name) + " = " + str(val_p)
+        else:
+            # hack
+            attr['label'] += "|" + str(f_name) + " = " + str(val)
+
+    id = add_dot_node(graph, attr)            
+
+    for key, value in conn_dict.iteritems():
+        add_dot_edge(graph, id, value, key)       
     
+    return id 
 
 def gdb_write(s):
     gdb.write("%s\n" % s)
 
 def init_dot():
-    global dot
     global node_cnt
+    global dot
     
+    node_cnt = 0
     dot = Digraph()
     dot.body.append("newrank=true")
-    node_cnt = 0
 
 def init_cub_types():
     global type_pt_node
@@ -76,51 +123,22 @@ def create_node_attr(v):
 def attr_to_str(attr):
     return ' '.join(['%s=%s' % (key, value) for (key, value) in attr.items()])
 
-def create_pt_node(s):
-    node_s = add_brackets(s)
-    this_v = eval_str(node_s)
 
-    attr = create_node_attr(this_v)
-    id = add_dot_node(attr)
-
-    node_type_str = node_s + ".node_type"
-    node_type = eval_str(node_type_str)
-    gdb_write(node_type)
-
-    info_str = node_s + ".info"
-    info_id = create_info_node(info_str)
-    
-    add_dot_edge(id, info_id, 'a')
-    gdb_write(dot.source)
-   
-def create_info_node(s):
+def add_dot_node(graph, attr):
     global node_cnt
-
-    info_s = add_brackets(s)
-    this_v = eval_str(info_s)
-    attr = create_node_attr(this_v)
-    id = add_dot_node(attr)
-
-    #
-    return id 
-
-def add_dot_node(attr):
-    global node_cnt
-    label = attr['label']
+    label = "{" + attr['label'] + "}"
     del attr['label']
-    dot.node(str(node_cnt), label, attr_to_str(attr))
+
+    graph.node(str(node_cnt), label, attr)
     node_cnt += 1
+    gdb_write(node_cnt)
     return node_cnt - 1
 
-def add_dot_edge(f, to, attr):
-    dot.edge(str(f), str(to))
+def add_dot_edge(graph, f, to, attr):
+    graph.edge(str(f), str(to))
 
 def eval_str(s):
     return gdb.parse_and_eval(s)
-
-def add_brackets(s):
-    return "(" + s + ")"
-
     
 class CUBRID_PTNODE_Traversal(gdb.Command):
     '''
@@ -136,9 +154,21 @@ class CUBRID_PTNODE_Traversal(gdb.Command):
 
     def invoke(self, arg, from_tty):
         try:
-            v = gdb.parse_and_eval(arg)
+            init_dot()
+            argv = gdb.string_to_argv(arg)
+            v = gdb.parse_and_eval(argv[0])
+
+            if len(argv) > 1 and "debug" in argv:
+                logging.basicConfig(filename='debug.log', level=logging.DEBUG)
+                getattr(logging, "DEBUG")
+                gdb.write("debugging mode")
+
             cpt_parser(v)
+            gdb_write(dot.source)
         except gdb.error, e:
             raise gdb.GdbError(e.message)
+        except:
+            gdb_write(traceback.format_exc())
+            raise
 
 CUBRID_PTNODE_Traversal()
