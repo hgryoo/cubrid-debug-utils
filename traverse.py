@@ -13,10 +13,6 @@ def is_container(v):
 def is_pointer(v):
     return (v.type.code == gdb.TYPE_CODE_PTR)
 
-program_name = sys.argv[0]
-arguments = sys.argv[1:]
-count = len(arguments)
-
 def make_pt_node_type_enum():
     enum_typedef = gdb.lookup_type("PT_NODE_TYPE")
     gdb.write("%s\n" % enum_typedef.code)
@@ -45,9 +41,10 @@ def create_pt_node_internal(graph, v):
     node_type = v['node_type']
     attr['label'] = "<PT_NODE> " + str(node_type)
     
+    dt_id = -1
     data_type = v['data_type']
     if not is_null(data_type):
-        create_pt_node_internal(graph, data_type)
+        dt_id = create_pt_node_internal(graph, data_type)
     
     info = v['info']
     concrete_info_type = (str(node_type))[3:].lower()
@@ -56,7 +53,10 @@ def create_pt_node_internal(graph, v):
     info_id = create_pt_node_info(graph, concrete_info)
 
     id = add_dot_node(graph, attr)
+
     add_dot_edge(graph, id, info_id, 'info')
+    if not dt_id == -1:
+        add_dot_edge(graph, id, dt_id, 'data_type')
     return id
 
 def create_pt_node_info(graph, v):
@@ -81,11 +81,17 @@ def create_pt_node_info(graph, v):
                     pt_id = create_pt_node_internal(graph, val_p)
                     conn_dict[f_name] = pt_id
                 else:
-                    attr['label'] += "|" + str(f_name) + " = " + str(val_p)
+                    # TODO
+                    pass
+        elif is_container(val):
+            pass
+            # TODO
         else:
             # hack
-            attr['label'] += "|" + str(f_name) + " = " + str(val)
+            attr['label'] += "|{" + str(f_name) + "|" + str(val) + "}"
 
+    attr['label'] = attr['label'].replace(',','|')
+    attr['label'] = attr['label'].replace('= {', '| {')
     id = add_dot_node(graph, attr)            
 
     for key, value in conn_dict.iteritems():
@@ -101,7 +107,7 @@ def init_dot():
     global dot
     
     node_cnt = 0
-    dot = Digraph()
+    dot = Digraph(format='png')
     dot.body.append("newrank=true")
 
 def init_cub_types():
@@ -117,16 +123,11 @@ def init_cub_types():
 def create_node_attr(v):
     attr = {}
     attr['shape'] = 'record'
-    attr['label'] = v.type.__str__()
     return attr
-
-def attr_to_str(attr):
-    return ' '.join(['%s=%s' % (key, value) for (key, value) in attr.items()])
-
 
 def add_dot_node(graph, attr):
     global node_cnt
-    label = "{" + attr['label'] + "}"
+    label = '{' + attr['label'] + '}'
     del attr['label']
 
     graph.node(str(node_cnt), label, attr)
@@ -158,13 +159,13 @@ class CUBRID_PTNODE_Traversal(gdb.Command):
             argv = gdb.string_to_argv(arg)
             v = gdb.parse_and_eval(argv[0])
 
-            if len(argv) > 1 and "debug" in argv:
+            if len(argv) > 2 and "debug" in argv:
                 logging.basicConfig(filename='debug.log', level=logging.DEBUG)
                 getattr(logging, "DEBUG")
                 gdb.write("debugging mode")
 
             cpt_parser(v)
-            gdb_write(dot.source)
+            dot.render(argv[1], cleanup=True, format='png')
         except gdb.error, e:
             raise gdb.GdbError(e.message)
         except:
