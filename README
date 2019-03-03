@@ -1,5 +1,0 @@
-# Debug utils for CUBRID DBMS
-
-This repository provides utility tools for debugging the CUBRID DBMS.
-
-- GDB Parsing Node Visualizer (traverse.py)
