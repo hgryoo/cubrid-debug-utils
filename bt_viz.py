@@ -1,3 +1,4 @@
+import os
 import sys
 import gdb
 import graphviz
@@ -141,6 +142,16 @@ def add_dot_edge(graph, f, to, attr):
 def eval_str(s):
     return gdb.parse_and_eval(s)
 
+class Node:
+    def __init__(self, name, arguments):
+        self.name = name
+        self.arguments = {}
+
+class Edge:
+    def __init__(self, name):
+        pass
+    
+
 class Graph:
     
     def __init__(self, name):
@@ -152,30 +163,57 @@ class Graph:
         self.node_list = {}
         self.edge_list = {}
 
-    def add_node(self, f_name, path):
+    def add_node(self, func, sub_graph_name):
         idx = -1
-        if not path in sub_graph:
-            self.sub_graph.append(path)
+        if not sub_graph_name in self.sub_graph:
+            self.sub_graph.append(sub_graph_name)
+            idx = len(self.sub_graph) - 1
         else:
-            idx = self.sub_graph.index(path)
+            idx = self.sub_graph.index(sub_graph_name)
 
-        self.node_list[f_name] = idx
+        self.node_list[func] = idx
 
     def add_edge(self, start, end, value):
-        if start in self.edge_list:
-        self.edge_list[start].add(end)
+        self.edge_list[(start, end)] = value
+
+    def render(self):
+
+        g_map = {}
+
+        for item in self.sub_graph:
+            graph_name = "cluster_" + item
+            c = Digraph(name=graph_name)
+            c.attr(label=item)
+            g_map[item] = c            
+
+        for key, value in self.node_list.iteritems():
+            g_name = self.sub_graph[value]
+            sub_g = g_map[g_name]
+            sub_g.node(key)
+
+        for key, value in g_map.iteritems():
+            self.dot.subgraph(value)
+
+        gdb_write(self.dot.source)
+
+        for key, value in self.edge_list.iteritems():
+            start = key[0]
+            end = key[1]
+            self.dot.edge(start, end)
+
+        return self.dot
 
 class GraphManager:
     def __init__(self):
         self.graph_dict = {}
 
-    def has_graph(name):
+    def has_graph(self, name):
         if name in self.graph_dict:
-            return False
-        else:
             return True
+        else:
+            return False
 
-    def create_graph(name):
+    def create_graph(self, name):
         if not name in self.graph_dict:
             self.graph_dict[name] = Graph(name)
             return self.graph_dict[name]
@@ -183,11 +221,11 @@ class GraphManager:
             gdb_write("there is same graph name")
             return None
 
-    def write_graph(name):
+    def write_graph(self, name):
         if name in self.graph_dict:
-            return self.graph_dict[name].dot.source
+            return self.graph_dict[name].render()
         else:
-            return ''
+           gdb_write("invalid graph") 
                      
  
 class CUBRID_BT_Visualizer(gdb.Command):
@@ -200,6 +238,7 @@ class CUBRID_BT_Visualizer(gdb.Command):
             gdb.COMMAND_DATA, gdb.COMPLETE_SYMBOL, False)
 
         self.gm = GraphManager()
+        self.path = ''
 
     def invoke(self, arg, from_tty):
         try:
@@ -211,22 +250,39 @@ class CUBRID_BT_Visualizer(gdb.Command):
             cmd = argv[0]
             params = argv[1:]
 
-            gdb_write(params)
-
             if cmd == "create":
                 self.create(params)
             elif cmd == "write":
-                pass
+                self.write(params)
             elif cmd == "clear":
                 pass
+            elif cmd == "init":
+                self.init(params)
+            elif cmd == "merge":
+                pass
+            elif cmd == "list":
+                self.list()
             else:
                 gdb_write("Unknown command")
 
-        except gdb.error, e:
-            raise gdb.GdbError(e.message)
         except:
             gdb_write(traceback.format_exc())
             raise
+
+    def list(self):
+        gdb_write(self.graph_dict.keys())   
+            
+
+    def init(self, params):
+        if len(params) > 0:
+            path = params[0]
+            
+            if os.path.isdir(path) and os.access(path, os.W_OK):
+                self.path = path
+                gdb_write("initalize succeeded")
+            else:
+                gdb_write("invalid path or no permissions")
+            
 
     def create(self, params):
         if len(params) > 0:
@@ -238,20 +294,54 @@ class CUBRID_BT_Visualizer(gdb.Command):
             g = self.gm.create_graph(graph_name)
 
             backtrace = gdb.execute('bt', to_string=True)
-            bt_list = backtrace.splitlines().reverse()
+            bt_list = backtrace.splitlines()
+            bt_list.reverse()
 
+            prev_node = None
+            current_node = None
             for f in bt_list:
-                spl_in = f.split(' in ')
-                spl_at = spl_in[1].split(' at ')
 
-                func_info = spl_at[0].split(' ')
+                spl_at = f.split(" at ")
+
+                func_info = spl_at[0]
+                if " in " in func_info:
+                    func_info = spl_at[0].split(" in ")[1]
+                    func_info_list = func_info.split(' ')
+                else:
+                    func_info_list = spl_at[0].split(' ')[1:]
+                    gdb_write(func_info_list)
+
+
+                func_info_list = func_info.split(' ')
                 file_info = spl_at[1].split(':')
 
-                path_list = file_info.split('/')
+                func_name = func_info_list[0]
+
+                path_list = file_info[0].split('/')
+
+                file_name = path_list[-1]
+                module_name = path_list[-2]
+                sub_graph_name = module_name + '/' + file_name
+
+                g.add_node(func_name, sub_graph_name)
+                current_node = func_name
+
+                if prev_node is not None:
+                    g.add_edge(prev_node, current_node, file_info[1])
+
+                prev_node = func_name
 
 
     def write(self, params):
-        pass
-        
+        if len(params) > 0:
+            graph_name = params[0]
 
+            if self.gm.has_graph(graph_name):
+                g = self.gm.write_graph(graph_name)
+                path = os.path.join(self.path, graph_name + ".gv")
+                g.render(path)
+                gdb_write("writing graph dot file succeeded")
+            else:
+                gdb_write("unknown graph name")
+        
 CUBRID_BT_Visualizer()

@@ -1,4 +1,3 @@
-yum install epel-release
-yum install python-pip
+yum install epel-release, python-pip, graphviz
 
 pip install graphviz
