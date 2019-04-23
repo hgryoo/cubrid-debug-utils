@@ -141,6 +141,7 @@ class CUBRID_PARSER_Traverser(gdb.Command):
 
 			if cmd == "create":
 				# self.create(params)
+				pass
 			elif cmd == "write":
 				self.write(params)
 			elif cmd == "clear":
@@ -150,6 +151,7 @@ class CUBRID_PARSER_Traverser(gdb.Command):
 			elif cmd == "merge":
 				pass
 			elif cmd == "list":
+				pass
 				# self.list()
 			else:
 				ghelper.gdb_write("Unknown command")
