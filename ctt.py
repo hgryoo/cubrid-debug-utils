@@ -103,18 +103,18 @@ class TreeParser():
 			return str(v) == str(lookup_type)
 
 class CUBRID_PARSER_Traverser(gdb.Command):
-    '''
-    cpt <command> <options>
-    '''
-    def __init__(self): 
-        super(CUBRID_PARSER_Traverser, self).__init__(
-            'cpt',
-            gdb.COMMAND_DATA, gdb.COMPLETE_SYMBOL, False)
+	'''
+	cpt <command> <options>
+	'''
+	def __init__(self):
+		super(CUBRID_PARSER_Traverser, self).__init__(
+			'cpt',
+			gdb.COMMAND_DATA, gdb.COMPLETE_SYMBOL, False)
 		
 		self.parser = TreeParser()
 		
-    def write(self, params):
-        if len(params) > 1:
+	def write(self, params):
+		if len(params) > 1:
 			
 			name = params[0]
 			value = params[1]
@@ -130,31 +130,31 @@ class CUBRID_PARSER_Traverser(gdb.Command):
 				ghelper.gdb_write("Duplicated name")
 			
 	def invoke(self, arg, from_tty):
-	try:
-		argv = gdb.string_to_argv(arg)
+		try:
+			argv = gdb.string_to_argv(arg)
 
-		if len(argv) < 2:
-			return
+			if len(argv) < 2:
+				return
 
-		cmd = argv[0]
-		params = argv[1:]
+			cmd = argv[0]
+			params = argv[1:]
 
-		if cmd == "create":
-			# self.create(params)
-		elif cmd == "write":
-			self.write(params)
-		elif cmd == "clear":
-			pass
-		elif cmd == "init":
-			# self.init(params)
-		elif cmd == "merge":
-			pass
-		elif cmd == "list":
-			# self.list()
-		else:
-			ghelper.gdb_write("Unknown command")
-	except:
-        ghelper.gdb_write(traceback.format_exc())
-        raise
+			if cmd == "create":
+				# self.create(params)
+			elif cmd == "write":
+				self.write(params)
+			elif cmd == "clear":
+				pass
+			elif cmd == "init":
+				# self.init(params)
+			elif cmd == "merge":
+				pass
+			elif cmd == "list":
+				# self.list()
+			else:
+				ghelper.gdb_write("Unknown command")
+		except:
+			ghelper.gdb_write(traceback.format_exc())
+			raise
 			
 CUBRID_PARSER_Traverser()
