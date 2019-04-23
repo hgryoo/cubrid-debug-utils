@@ -27,14 +27,15 @@ class TreeParser():
 		
 		self.CONCRETE_INFO = {
 		 'PT_SELECT' : ['PT_QUERY_INFO', 'query'],
-		 'PT_EXPR' : ['PT_EXPR_INFO', 'expr']
+		 'PT_EXPR' : ['PT_EXPR_INFO', 'expr'],
+		 'PT_FUNCTION' : ['PT_FUNCTION_INFO', 'function']
 		}
 	
-	def parsePTNODE_root(self, name, v):
+	def parse_PTNODE_root(self, name, v):
 		self.node[name] = {}
-		parsePTNODE_internal(self.node[name], v)
+		parse_PTNODE_internal(self.node[name], v)
 	
-	def parsePTNODE_internal(self, cur_n, v):
+	def parse_PTNODE_internal(self, cur_n, v):
 		fields = v.type.fields()
 		for f in fields:
 			f_name = f.name
@@ -42,30 +43,31 @@ class TreeParser():
 			
 			val = v[f_name]
 			
-			if is_pointer(val) and not is_null(val):
+			if not is_null(val):
 				if self.is_pt_node(val):
 					next_pt_node = cur_n[f.type] = {}
 					parsePTNODE_internal(next_pt_node, val)
 				elif self.is_info_node(val):
 					concrete_info_type = self.CONCRETE_INFO[node_type]
 					# HACK
-					if(concrete_info_type == None):
+					if concrete_info_type is None:
 						concrete_info_type = [f_type, (str(f_type))[3:].lower()]
 					
-					concrete_info = val[ concrete_info_type[1] ]
-					info_name = val[ concrete_info_type[0] ]
-					info_node = cur_n[info_name] = {}
-					self.parsePTINFO(info_node, concrete_info)
-				else:
+					if concrete_info_type is not None:
+						concrete_info = val[ concrete_info_type[1] ]
+						info_name = val[ concrete_info_type[0] ]
+						info_node = cur_n[info_name] = {}
+						self.parse_PTINFO(info_node, concrete_info)
+						
+				elif is_pointer(val):
 					pass
-			else:
-				if is_container(val):
+					
+				elif is_container(val):
 					cur_n[f_name] = str(val)
 				else:
 					cur_n[f_name] = val
 		
-		
-	def parsePTINFO(self, cur_n, v):
+	def parse_PTINFO(self, cur_n, v):
 		fields = v.type.fields()
 		
 		for f in fields:
@@ -76,28 +78,29 @@ class TreeParser():
 			
 			if self.is_pt_node(val):
 				cur_n[f.type] = {}
-				parsePTNODE_internal(
+				parsePTNODE_internal(cur_n[f.type], val)
 			elif is_pointer(val):
+				pass
+			elif is_container(val):
 				pass
 			else:
 				pass
 		
-	def getPTNODE(self, name):
+	def get_PTNODE(self, name):
 		return self.node[name]
 	
 	def is_pt_node(self, v):
-		pt_node_type = gdb.lookup_type("PT_NODE")
-		if type(v) is gdb.Value:
-			return (v.type.__str__() == pt_node_type.__str__())
-		else:
-			return str(v) == str(pt_node_type)
+		return check_type(v, "PT_NODE")
 
 	def is_info_node(self, v):
-		info_node_type = gdb.lookup_type("PT_STATEMENT_INFO")
+		return check_type(v, "PT_STATEMENT_INFO")
+	
+	def check_type(self, v, name):
+		lookup_type = gdb.lookup_type(name)
 		if type(v) is gdb.Value:
-			return (v.type.__str__() == info_node_type.__str__())
+			return (v.type.__str__() == lookup_type.__str__())
 		else:
-			return str(v) == str(info_node_type)
+			return str(v) == str(lookup_type)
 
 class CUBRID_PARSER_Traverser(gdb.Command):
     '''
@@ -111,9 +114,21 @@ class CUBRID_PARSER_Traverser(gdb.Command):
 		self.parser = TreeParser()
 		
     def write(self, params):
-        if len(params) > 0:
+        if len(params) > 1:
 			
-				
+			name = params[0]
+			value = params[1]
+			
+			if self.parser.node[name] is None:
+			
+				self.parser.parse_PTNODE_root(name, value)
+			
+				with open(name + '.json', 'w', encoding="utf-8") as make_file:
+					json.dump(self.parser.node[name], make_file, ensure_ascii=False, indent="\t")
+			
+			else:
+				ghelper.gdb_write("Duplicated name")
+			
 	def invoke(self, arg, from_tty):
 	try:
 		argv = gdb.string_to_argv(arg)
