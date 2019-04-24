@@ -148,6 +148,7 @@ class CUBRID_PARSER_Traverser(gdb.Command):
 				pass
 			elif cmd == "init":
 				# self.init(params)
+				pass
 			elif cmd == "merge":
 				pass
 			elif cmd == "list":
