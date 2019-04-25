@@ -68,62 +68,137 @@ class TreeParser:
         
         self.CONCRETE_INFO = {
          'PT_SELECT'    : ['PT_QUERY_INFO', 'query'],
+         'PT_UNION'     : ['PT_QUERY_INFO', 'query'],
          'PT_EXPR'      : ['PT_EXPR_INFO', 'expr'],
          'PT_FUNCTION'  : ['PT_FUNCTION_INFO', 'function'],
          'PT_VALUE'     : ['PT_VALUE_INFO', 'value'],
          'PT_SPEC'      : ['PT_SPEC_INFO', 'spec'],
          'PT_NAME'      : ['PT_NAME_INFO', 'name']
         }
-    
+
+        self.RESERVED_FUNC = {
+         'PT_NODE' : self.next_internal,
+         'PT_STATEMENT_INFO' : self.next_PT_STATEMENT_INFO,
+         'PT_VALUE_INFO' : self.next_PT_VALUE_INFO,
+         'PT_QUERY_INFO' : self.next_PT_QUERY_INFO
+        }
+
+        self.TYPE_ENUM = make_type_enum("PT_TYPE_ENUM")
+        
+        self.DEFAULT_FILTER = ["qo_summary", "xasl"]
+
+    def default_filter(self):
+        return ["qo_summary", "xasl"]   
+ 
     def parse_PTNODE_root(self, name, v):
         self.node[name] = {}
-        self.parse_internal(self.node[name], v)
-    
-    def parse_PTNODE_internal(self, cur_n, v):
+        self.parse_internal(self.node[name], [], None, v)
 
-        cur_n['TYPE'] = 'PT_NODE'
+    def next_internal(self, cur_n, f, p, v):
+        try:
+            next_node = cur_n[str(f.name)] = {}
+            self.parse_internal(next_node, [], p, v)
+        except:
+            gdb_write("error occured in next_internal")
 
-        fields = v.type.fields()
-        for f in fields:
-            f_name = f.name
-            f_type = f.type
-            
-            val = v[f_name]
-            if is_nullptr(val):
-                continue
-
-            if self.is_pt_node(val):
-                next_pt_node = cur_n[str(f_name)] = {}
-                self.parse_PTNODE_internal(next_pt_node, val)
-            elif self.is_info_node(val):
-                concrete_info_type = self.CONCRETE_INFO[str(v["node_type"])]
+    def next_PT_STATEMENT_INFO(self, cur_n, f, p, v):
+        if self.is_pt_node(p):
+            node_type = str(p["node_type"])
+            try:
+                concrete_info_type = None
+                if node_type in self.CONCRETE_INFO:
+                    concrete_info_type = self.CONCRETE_INFO[node_type]
                 # HACK
                 if concrete_info_type is None:
-                    concrete_info_type = [f_type, (str(v["node_type"]))[3:].lower()]
-                    
-                if concrete_info_type is not None:
-                    concrete_info_name = concrete_info_type[1]
-                    concrete_info = val[ concrete_info_name ]
-                    info_name = concrete_info_type[0]
-                    info_node = cur_n['info [' + info_name + ']'] = {}
-                    info_node['TYPE'] = info_name 
-                    self.parse_PTINFO(info_node, concrete_info)
-                        
-            elif is_container(val):
-                next = cur_n[str(f_name)] = {}
-                self.parse_internal(next, val)
-            else:
-                cur_n[f_name] = str(val)
+                    concrete_info_type = [str(f.type), (str(f.type)).replace("PT_", "").replace("_INFO", "").lower()]
+                concrete_info_name = concrete_info_type[1]
+                concrete_info = v[ concrete_info_name ]
+                info_name = concrete_info_type[0]
+                info_node = cur_n['info.' + concrete_info_name] = {}
+                
+                if info_name in self.RESERVED_FUNC:
+                    func = self.RESERVED_FUNC[info_name]
+                    func(info_node, concrete_info.type, p, concrete_info)
+                else:
+                    self.parse_internal(info_node, [] , p, concrete_info) 
+            except:
+                gdb_write(str(f.name) + ":" + str(f.type) + " has failed to parse for " + node_type)
+        else:
+            gdb_write("unknown type : " + str(f.type))
 
-    def parse_internal(self, cur_n, v):
+    def next_PT_QUERY_INFO(self, cur_n, f, p, v):
+        if self.is_pt_node(p):
+
+           node_type = str(p["node_type"])
+
+           filter = []
+           if node_type == "PT_SELECT":
+                filter.append("union_")
+           elif node_type == "PT_UNION":
+                filter.append("select")
+
+           q_union = v["q"]
+           self.parse_internal(cur_n, filter, v, q_union)
+           self.parse_internal(cur_n, ["q"], p, v)
+
+        else:
+            gdb_write("unknown type : " + str(f.type))
+    
+    def next_PT_VALUE_INFO(self, cur_n, f, p, v):
+        if self.is_pt_node(p):
+            try:
+                type_enum = p["type_enum"]
+
+                type_lower = str(type_enum).replace("PT_TYPE_", "").lower()
+
+                t1 = ["logical", "float", "double", "numeric", "integer", "bigint", "smallint"]
+                t2 = ["date", "time", "timestamp", "timestamptz", "timestampltz", "datetime", "datetimetz", "datetimeltz"]
+                t3 = ["char", "nchar", "bit", "varchar", "varnchar", "varbit"] 
+
+                if type_lower in t1:
+                    if not is_nullptr(v["text"]):
+                        cur_n["value"] = str(v["text"])
+                    else:
+                        if type_lower == "float":
+                            cur_n["value"] = str(v["data_value"]["f"])
+                        elif type_lower == "double":
+                            cur_n["value"] = str(v["data_value"]["d"])
+                        elif type_lower == "numeric":
+                            cur_n["value"] = str(v["data_value"]["str"]["bytes"])
+                        elif type_lower == "integer" or type_lower == "logical" or type_lower == "smallint":
+                            cur_n["value"] = str(v["data_value"]["i"])
+                        elif type_lower == "bigint":
+                            cur_n["value"] = str(v["data_value"]["bigint"])
+
+                if type_lower in t2:
+                    cur_n["value"] = str(v["date_value"]["str"]["bytes"])
+
+                if type_lower in t3:
+                    if not is_nullptr(v["text"]):
+                        cur_n["value"] = str(v["text"])
+                    else:
+                        cur_n["value"] = str(v["data_value"]["str"])
+                cur_n["value_type"] = type_lower
+
+                self.parse_internal(cur_n, ["data_value", "db_value", "text"], p, v)
+            except:
+                gdb_write("error occured in next_PT_VALUE_INFO")
+        else:
+            gdb_write("unknown type : " + str(f.type))
+
+    def parse_internal(self, cur_n, filter, p, v):
         cur_n['TYPE'] = str(v.type)
+        filter.extend(self.DEFAULT_FILTER)
 
         fields = v.type.fields()
         for f in fields:
             f_name = f.name
             f_type = f.type
-            
-            val = v[f_name]
+
+            if str(f.name) in filter:
+                continue            
+
+            val = v[f.name]
             if is_nullptr(val):
                 continue
 
@@ -137,31 +212,13 @@ class TreeParser:
             if not is_accessable(val):
                 continue
 
-            if self.is_pt_node(val):
-                next_pt_node = cur_n[str(f_name)] = {}
-                self.parse_internal(next_pt_node, val)
-            elif self.is_info_node(val):
-                try:
-                    node_type = str(v["node_type"])
-                    concrete_info_type = None
-                    if node_type in self.CONCRETE_INFO:
-                        concrete_info_type = self.CONCRETE_INFO[node_type]
-                    # HACK
-                    if concrete_info_type is None:
-                        concrete_info_type = [str(f_type), (str(f_type))[3:].lower()]
-                    
-                    if concrete_info_type is not None:
-                        concrete_info_name = concrete_info_type[1]
-                        concrete_info = val[ concrete_info_name ]
-                        info_name = concrete_info_type[0]
-                        info_node = cur_n['info [' + info_name + ']'] = {}
-                        self.parse_internal(info_node, concrete_info)
-                except:
-                    gdb_write(str(f_name) + ":" + str(f_type) + " has failed to parse for " + str(node_type))
-                        
+            if str(f.type) in self.RESERVED_FUNC:
+                func = self.RESERVED_FUNC[str(f.type)]
+                func(cur_n, f, v, val)
+            
             elif is_container(val):
                 next = cur_n[str(f_name)] = {}
-                self.parse_internal(next, val)
+                self.parse_internal(next, [], v, val)
 
             elif is_array(val) or is_primitive(val):
                 cur_n[f_name] = str(val)
