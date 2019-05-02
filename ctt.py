@@ -11,16 +11,25 @@ from graphviz import Digraph
 def gdb_write(s):
     gdb.write("%s\n" % s)
 
+def typecode(n):
+    if type(n) is gdb.Value:
+        c = n.type.strip_typedefs().code
+    elif type(n) is gdb.Type:
+        c = n.strip_typedefs().code
+    else:
+        c = None
+    return c
+
 def is_pointer(v):
-    c = v.type.strip_typedefs().code
+    c = typecode(v)
     return (c == gdb.TYPE_CODE_PTR)
 
 def is_container(v):
-    c = v.type.strip_typedefs().code
+    c = typecode(v)
     return (c == gdb.TYPE_CODE_STRUCT or c == gdb.TYPE_CODE_UNION)
 
 def is_array(v):
-    c = v.type.strip_typedefs().code
+    c = typecode(v)
     return (c == gdb.TYPE_CODE_ARRAY)
 
 def is_nullptr(v):
@@ -36,12 +45,12 @@ def is_accessable(v):
         return False
 
 def is_enum(v):
-    c = v.type.strip_typedefs().code
+    c = typecode(v)
     return (c == gdb.TYPE_CODE_ENUM)
     
 
 def is_primitive(v):
-    c = v.type.strip_typedefs().code
+    c = typecode(v)    
     return (c == gdb.TYPE_CODE_INT or
             c == gdb.TYPE_CODE_FLT or
             c == gdb.TYPE_CODE_VOID or
@@ -49,6 +58,10 @@ def is_primitive(v):
             c == gdb.TYPE_CODE_BOOL or
             c == gdb.TYPE_CODE_DECFLOAT or
             c == gdb.TYPE_CODE_ENUM)
+
+def is_string(v):
+    char_ptr = gdb.lookup_type('char').pointer()
+    return str(v.type) == str(char_ptr)
 
 def check_type(v, name):
     lookup_type = gdb.lookup_type(name)
@@ -80,7 +93,8 @@ class TreeParser:
          'PT_NODE' : self.next_internal,
          'PT_STATEMENT_INFO' : self.next_PT_STATEMENT_INFO,
          'PT_VALUE_INFO' : self.next_PT_VALUE_INFO,
-         'PT_QUERY_INFO' : self.next_PT_QUERY_INFO
+         'PT_QUERY_INFO' : self.next_PT_QUERY_INFO,
+         'PT_SPEC_INFO' : self.next_PT_SPEC_INFO
         }
 
         self.TYPE_ENUM = make_type_enum("PT_TYPE_ENUM")
@@ -114,7 +128,7 @@ class TreeParser:
                 concrete_info_name = concrete_info_type[1]
                 concrete_info = v[ concrete_info_name ]
                 info_name = concrete_info_type[0]
-                info_node = cur_n['info.' + concrete_info_name] = {}
+                info_node = cur_n['info'] = {}
                 
                 if info_name in self.RESERVED_FUNC:
                     func = self.RESERVED_FUNC[info_name]
@@ -175,14 +189,57 @@ class TreeParser:
 
                 if type_lower in t3:
                     if not is_nullptr(v["text"]):
-                        cur_n["value"] = str(v["text"])
+                        cur_n["value"] = (v["text"]).string()
                     else:
-                        cur_n["value"] = str(v["data_value"]["str"])
+                        cur_n["value"] = (v["data_value"]["str"]).string()
                 cur_n["value_type"] = type_lower
 
                 self.parse_internal(cur_n, ["data_value", "db_value", "text"], p, v)
             except:
                 gdb_write("error occured in next_PT_VALUE_INFO")
+        else:
+            gdb_write("unknown type : " + str(f.type))
+
+    def next_PT_SPEC_INFO(self, cur_n, f, p, v):
+        if self.is_pt_node(p):
+            try:
+                fields = map(lambda x: str(x.name), v.type.fields())
+                entity_name = v["entity_name"]
+                is_entity = not is_nullptr(entity_name)
+                if is_entity and p["partition_pruned"] == 1:
+                    fields.remove("flat_entity_list") 
+                elif is_entity and not is_nullptr(entity_name["next"]):
+                    fields.remove("entity_name")
+                elif is_entity:
+                    fields.remove("meta_class")
+                    fields.remove("only_all")
+                    fields.remove("entity_name")
+                    fields.remove("partition")
+                    fields.remove("except_list")
+                elif not is_nullptr(v["derived_table"]):
+                    fields.remove("derived_table_type")
+                    fields.remove("derived_table")
+                    fields.remove("range_var")
+
+                as_attr_list = v["as_attr_list"]
+                cte_pointer = v["cte_pointer"]
+                if not is_nullptr(as_attr_list) and is_nullptr(cte_pointer) and str(v["derived_table_type"]) != "PT_DERIVED_JSON_TABLE":
+                    fields.remove("as_attr_list")
+
+                fields.remove("on_cond")
+                fields.remove("using_cond")
+
+                primitives = []
+                for name in fields:
+                    if is_primitive(v[name]) or is_enum(v[name]):
+                        primitives.append(name)
+
+                fields = [i for i in fields if i not in primitives]
+                self.parse_internal(cur_n, fields, p, v)
+                    
+            except:
+                gdb_write("error occured in next_PT_SPEC_INFO")
+                gdb_write(sys.exc_info())
         else:
             gdb_write("unknown type : " + str(f.type))
 
@@ -204,6 +261,9 @@ class TreeParser:
 
             if is_pointer(val):
                 try:
+                    if is_string(val):
+                        cur_n[f.name] = val.string()
+                        continue
                     val = val.dereference()
                 except:
                     # gdb_write("dereference failed, maybe xasl")
@@ -220,8 +280,12 @@ class TreeParser:
                 next = cur_n[str(f_name)] = {}
                 self.parse_internal(next, [], v, val)
 
-            elif is_array(val) or is_primitive(val):
+            elif is_primitive(val):
                 cur_n[f_name] = str(val)
+
+            elif is_array(val):
+                cur_n[f_name] = str(val)
+
             else:
                 gdb_write(str(f_type) + "=>" + str(val))
                 # just go inside
