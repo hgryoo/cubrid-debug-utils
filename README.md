@@ -10,17 +10,17 @@ It may include debugging support, visualizing and profiling tools.
 ```bash
 # CentOS 7
 yum install -y epel-release
-yum install -y python-pip, graphviz
+yum install -y python-pip graphviz
 
 pip install pyyaml
 pip install graphviz
 ```
 
-### GDB Parsing Node Visualizer (traverse.py)
+### GDB Parsing Node Visualizer (cpt.py)
 
 
 #### Getting Started
 
 ```
-(gdb) source /path/to/traverse.py
+(gdb) source /location/of/this-repo/cpt.py
 ```
