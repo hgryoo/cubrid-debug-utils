@@ -23,4 +23,5 @@ pip install graphviz
 
 ```
 (gdb) source /location/of/this-repo/cpt.py
+(gdb) cpt write <name> *node
 ```
