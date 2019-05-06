@@ -245,6 +245,7 @@ class TreeParser:
 
     def parse_internal(self, cur_n, filter, p, v):
         cur_n['TYPE'] = str(v.type)
+        cur_n['ADDRESS'] = str(v.address)
         filter.extend(self.DEFAULT_FILTER)
 
         fields = v.type.fields()
