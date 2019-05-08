@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #
+from __future__ import unicode_literals 
 
 import sys, argparse, logging, os
 
@@ -16,19 +17,27 @@ class CytoNodeData:
         yield "type", self.type
 
 class CytoEdgeData:
-    def __init__(self, id, source, target):
+    def __init__(self, id, name, source, target):
         self.id = id
+        self.name = name
         self.source = source
         self.target = target
         self.user_data = {}
 
     def __iter__(self):
         yield "id", self.id
+        yield "name", self.name
         yield "source", self.source
         yield "target", self.target
 
 def _decode_list(data):
     rv = []
+
+    try:
+        UNICODE_EXISTS = bool(type(unicode))
+    except NameError:
+        unicode = type(str)
+
     for item in data:
         if isinstance(item, unicode):
             item = item.encode('utf-8')
@@ -41,6 +50,12 @@ def _decode_list(data):
 
 def _decode_dict(data):
     rv = {}
+
+    try:
+        UNICODE_EXISTS = bool(type(unicode))
+    except NameError:
+        unicode = type(str)
+
     for key, value in data.items():
         if isinstance(key, unicode):
             key = key.encode('utf-8')
@@ -76,9 +91,8 @@ def parse(input, output):
     data = json.load(input, object_hook=_decode_dict, encoding='utf-8')
 
     json_root = {}
-    json_root["elements"] = {}
-    nodes = json_root["elements"]["nodes"] = []
-    edges = json_root["elements"]["edges"] = []
+    nodes = json_root["nodes"] = []
+    edges = json_root["edges"] = []
 
     parse_internal(data, nodes, edges)
 
@@ -87,7 +101,7 @@ def parse(input, output):
                           ensure_ascii=False,
                           cls=CytoEncoder)
 
-    output.write(unicode(json_str))
+    output.write(str(json_str))
 
 def parse_internal(item, nodes, edges):
 
@@ -111,22 +125,20 @@ def parse_internal(item, nodes, edges):
         value_key.remove("TYPE")
 
     if not id is None:
-        node = {}
-
-        data = CytoNodeData(id, t)
-        nodes.append(data)
-        nodes_map[id] = data
+        node = CytoNodeData(id, t)
+        nodes.append({"data" : node })
+        nodes_map[id] = node
 
         for k in node_key:
             child = item [ k ]
             child_id = parse_internal(child, nodes, edges)
 
-            edge = CytoEdgeData(id + "_" + child_id, id, child_id)
-            edges.append(edge)
+            edge = CytoEdgeData(id + "_" + child_id, k, id, child_id)
+            edges.append({"data" : edge })
             edges_map[id + "_" + child_id] = edge
 
         for k in value_key:
-            data.user_data[k] = item [ k ]
+            node.user_data[k] = item [ k ]
 
     else:
         pass
