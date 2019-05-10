@@ -31,14 +31,14 @@ window.addEventListener('DOMContentLoaded', function() {
         }
       ],
 
-      elements: fetch("./result.json").then(res => res.json())
+      elements: fetch("./result.cjson").then(res => res.json())
     });
     
     cy.filter(['[node [type = "PT_NODE"]']).style('background-color','green');
     
     cy.on('click', 'node', function(evt){
       var node = evt.target;
-      console.log( 'clicked ' + node.id() );
+      console.log( node.json().data);
     });
 
 });

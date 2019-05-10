@@ -91,6 +91,7 @@ class TreeParser:
          'PT_HOST_VAR'  : ['PT_HOST_VAR_INFO', 'host_var'],
          'PT_NODE_LIST' : ['PT_NODE_LIST_INFO', 'node_list'],
          'PT_QUERY' : ['PT_QUERY_INFO', 'query'],
+         'PT_SORT_SPEC' : ['PT_SORT_SPEC_INFO', 'sort_spec'],
         }
 
         self.RESERVED_FUNC = {
@@ -128,7 +129,8 @@ class TreeParser:
                     concrete_info_type = self.CONCRETE_INFO[node_type]
                 # HACK
                 if concrete_info_type is None:
-                    concrete_info_type = [str(f.type), (str(f.type)).replace("PT_", "").replace("_INFO", "").lower()]
+                    concrete_info_type = [node_type +"_INFO", (node_type).replace("PT_", "").replace("_INFO", "").lower()]
+
                 concrete_info_name = concrete_info_type[1]
                 concrete_info = v[ concrete_info_name ]
                 info_name = concrete_info_type[0]
