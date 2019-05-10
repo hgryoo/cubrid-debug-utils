@@ -86,7 +86,11 @@ class TreeParser:
          'PT_FUNCTION'  : ['PT_FUNCTION_INFO', 'function'],
          'PT_VALUE'     : ['PT_VALUE_INFO', 'value'],
          'PT_SPEC'      : ['PT_SPEC_INFO', 'spec'],
-         'PT_NAME'      : ['PT_NAME_INFO', 'name']
+         'PT_NAME'      : ['PT_NAME_INFO', 'name'],
+         'PT_DATA_TYPE' : ['PT_DATA_TYPE_INFO', 'data_type'],
+         'PT_HOST_VAR'  : ['PT_HOST_VAR_INFO', 'host_var'],
+         'PT_NODE_LIST' : ['PT_NODE_LIST_INFO', 'node_list'],
+         'PT_QUERY' : ['PT_QUERY_INFO', 'query'],
         }
 
         self.RESERVED_FUNC = {
@@ -244,8 +248,9 @@ class TreeParser:
             gdb_write("unknown type : " + str(f.type))
 
     def parse_internal(self, cur_n, filter, p, v):
-        cur_n['TYPE'] = str(v.type)
-        cur_n['ADDRESS'] = str(v.address)
+        if str(v.type).upper().find("PT_") is not -1:
+            cur_n['TYPE'] = str(v.type)
+            cur_n['ADDRESS'] = str(v.address)
         filter.extend(self.DEFAULT_FILTER)
 
         fields = v.type.fields()
