@@ -1,5 +1,5 @@
 window.addEventListener('DOMContentLoaded', function() {
-    var cy = window.cy = cytoscape({
+  var cy = cytoscape({
       container: document.getElementById('cy'),
 
       boxSelectionEnabled: false,
@@ -13,9 +13,12 @@ window.addEventListener('DOMContentLoaded', function() {
         {
           selector: 'node',
           style: {
-            'background-color': '#11479e',
             'label': 'data(type)'
-          }
+          },
+          selector: '.pt_node',
+          style: {
+            'background-color': 'green'
+          },
         },
 
         {
@@ -34,11 +37,23 @@ window.addEventListener('DOMContentLoaded', function() {
       elements: fetch("./result.cjson").then(res => res.json())
     });
     
-    cy.filter(['[node [type = "PT_NODE"]']).style('background-color','green');
+    cy.on('ready', function(event) {
+      var pt_nodes = cy.filter('node');
+
+      for (let i = 0; i < pt_nodes.length; ++i) {
+        node = pt_nodes[i];
+        data = node._private.data;
+
+        if (data["type"] == "PT_NODE") {
+          node.classes('node pt_node');
+        }
+
+        //console.log(pt_nodes[i]._private.data);
+      }
+    });
     
     cy.on('click', 'node', function(evt){
       var node = evt.target;
-      console.log( node.json().data);
+      console.log(node.json().data);
     });
-
 });
