@@ -1,0 +1,69 @@
+{
+  "name": "webpack-es6-boilerplate",
+  "version": "1.0.1",
+  "author": "Joseph Luccisano <joseph.luccisano@gmail.com> (https://jluccisano.github.io)",
+  "description": "A delightfully Webpack ES6 Boilerplate",
+  "license": "MIT",
+  "keywords": [
+    "webpack",
+    "boilerplate",
+    "es6",
+    "babel",
+    "eslint",
+    "jest",
+    "sass"
+  ],
+  "bugs": {
+    "url": "https://github.com/jluccisano/webpack-es6-boilerplate/issues",
+    "email": "joseph.luccisano@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jluccisano/webpack-es6-boilerplate.git"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "webpack-dev-server --config conf/webpack.dev.js",
+    "build": "webpack --env=prod --progress --profile --colors",
+    "lint": "eslint ./src/**.js",
+    "coverage": "jest --coverage --config=conf/jest.config.js",
+    "test": "jest --config=conf/jest.config.js",
+    "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "babel-core": "6.26.0",
+    "babel-eslint": "7.2.3",
+    "babel-jest": "20.0.3",
+    "babel-loader": "7.1.2",
+    "babel-preset-env": "1.6.0",
+    "browserslist": "^4.6.3",
+    "caniuse-lite": "^1.0.30000975",
+    "clean-webpack-plugin": "0.1.16",
+    "copy-webpack-plugin": "^5.0.3",
+    "css-loader": "^0.28.5",
+    "eslint": "4.5.0",
+    "eslint-loader": "1.9.0",
+    "html-webpack-plugin": "^3.2.0",
+    "jest": "20.0.4",
+    "json-loader": "^0.5.7",
+    "mini-css-extract-plugin": "^0.7.0",
+    "node-sass": "4.5.3",
+    "postcss-preset-env": "^6.6.0",
+    "sass-loader": "6.0.6",
+    "style-loader": "^0.18.2",
+    "webpack": "^4.34.0",
+    "webpack-cli": "^3.3.4",
+    "webpack-dev-server": "^3.7.2",
+    "webpack-merge": "4.1.0"
+  },
+  "dependencies": {
+    "autoprefixer": "^9.6.0",
+    "bootstrap": "^4.3.1",
+    "cytoscape": "^3.7.2",
+    "cytoscape-dagre": "^2.2.2",
+    "cytoscape-popper": "^1.0.4",
+    "jquery": "^3.4.1",
+    "postcss-loader": "^3.0.0",
+    "precss": "^4.0.0"
+  }
+}
