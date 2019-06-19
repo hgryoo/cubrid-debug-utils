@@ -12,7 +12,8 @@ It may include debugging support, visualizing and profiling tools.
 yum install -y epel-release
 yum install -y python-pip graphviz
 
-pip install pyyaml
+pip install py2cytoscape
+pip install scipy
 pip install graphviz
 ```
 
