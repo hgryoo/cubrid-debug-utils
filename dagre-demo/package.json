@@ -51,8 +51,8 @@
     "webpack-dev-server": "^2.4.5"
   },
   "dependencies": {
-    "cytoscape": "^3.2.0",
-    "dagre": "^0.8.2",
+    "grunt": "^1.0.4",
+    "grunt-contrib-concat": "^1.0.1",
     "tippy": "0.0.0"
   }
 }

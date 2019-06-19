@@ -1,13 +1,22 @@
 {
-  "name": "cytoscape-dagre",
-  "description": "The Dagre layout for DAGs and trees for Cytoscape.js",
-  "main": "cytoscape-dagre.js",
+  "name": "cubrid-dev-viewer",
+  "description": "",
+  "main": "demo.js",
   "dependencies": {
-    "cytoscape": "^3.2.0"
+    "cytoscape": "^3.2.0",
+    "cytoscape-popper": "^1.0.4",
+    "jquery": "^3.4.1",
+    "cytoscape-dagre": "^2.2.2"
+  },
+  "install": {
+    "path": {
+      "css": "static/css",
+      "js": "static/js"
+    }
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/cytoscape/cytoscape.js-dagre.git"
+    "url": "https://github.com/hgryoo/cubrid-dev-utils"
   },
   "ignore": [
     "**/.*",
